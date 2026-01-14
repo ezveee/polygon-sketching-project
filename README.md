@@ -57,4 +57,39 @@ This command builds the application and puts the generated files into the `dist`
 
 ## Baseline Implementation
 
-To be implemented using OOP/imperative programming style.
+The baseline implementation uses TypeScript with vanilla HTML Canvas in an OOP/imperative style.
+
+### Architecture Highlights
+
+- **Mutable State**: `PolygonDrawingApp` class maintains mutable arrays and objects
+- **Classes**: `Point`, `Polygon`, and `PolygonDrawingApp` classes with methods
+- **Direct Manipulation**: Event handlers directly modify state
+- **Imperative Rendering**: Explicit render calls after state changes
+
+### Requirements
+
+* [node.js](https://nodejs.org) v18+ LTS
+
+### Development
+
+Navigate to the `baseline/` directory:
+```bash
+cd baseline
+```
+
+Install dependencies:
+```bash
+npm install
+```
+
+Start development server:
+```bash
+npm run dev
+```
+This will start the Vite dev server at http://localhost:5174 to view the application.
+
+To build for production:
+```bash
+npm run build
+```
+This command builds the application and puts the generated files into the `dist` directory.
