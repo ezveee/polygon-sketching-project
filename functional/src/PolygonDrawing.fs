@@ -33,6 +33,8 @@ type Model = {
     past : Option<Model>
     // used for redo
     future : Option<Model>
+    // Track the state before starting the current polygon (for consolidation)
+    currentPolygonStartState : Option<Model>
 }
 
 // and explicit representation of all possible user interactions. This one can be used for 
@@ -41,6 +43,7 @@ type Msg =
     | AddPoint of Coord
     | SetCursorPos of Option<Coord>
     | FinishPolygon
+    | Clear
     | Undo
     | Redo
 
@@ -48,7 +51,7 @@ type Msg =
 let init () =
     let m = 
         { finishedPolygons = []; currentPolygon = None; // records can be written multiline
-          mousePos = None ; past = None; future = None }
+          mousePos = None ; past = None; future = None; currentPolygonStartState = None }
     m, Cmd.none // Cmd is optionally to explicitly represent side-effects in a safe manner (here we don't bother)
 
 
@@ -63,7 +66,38 @@ For FinishPolygon mesages:
  - if there is a current polygon, reset the current polygon to None and add the current polygon as a new elemnet to finishedPolygons.
 *)
 let updateModel (msg : Msg) (model : Model) =
-    model
+    match msg with
+    | AddPoint coord ->
+        match model.currentPolygon with
+        | None -> 
+            // Start new polygon with this point
+            { model with 
+                currentPolygon = Some [coord]
+                currentPolygonStartState = model.past }
+        | Some points ->
+            // Add point to existing polygon (prepend to list)
+            { model with currentPolygon = Some (coord :: points) }
+    | FinishPolygon ->
+        match model.currentPolygon with
+        | None -> model // No current polygon, ignore
+        | Some points ->
+            if List.length points >= 3 then
+                // Finish polygon: add to finished list and reset current
+                // Also restore past to the start state to consolidate history
+                { model with 
+                    finishedPolygons = points :: model.finishedPolygons
+                    currentPolygon = None
+                    past = model.currentPolygonStartState
+                    currentPolygonStartState = None }
+            else
+                model // Not enough points
+    | Clear ->
+        // Clear all polygons
+        { model with 
+            finishedPolygons = []
+            currentPolygon = None
+            currentPolygonStartState = None }
+    | _ -> model
 
 // wraps an update function with undo/redo.
 let addUndoRedo (updateFunction : Msg -> Model -> Model) (msg : Msg) (model : Model) =
@@ -74,15 +108,23 @@ let addUndoRedo (updateFunction : Msg -> Model -> Model) (msg : Msg) (model : Mo
         // update the mouse position and create a new model.
         { model with mousePos = p }
     | Undo -> 
-        // TODO implement undo logics, HINT: restore the model stored in past, and replace the current
-        // state with it.
-        model
+        // Restore the model stored in past
+        match model.past with
+        | Some prevModel -> 
+            // Move current to future for redo
+            { prevModel with future = Some model }
+        | None -> model
     | Redo -> 
-        // TODO: same as undo
-        model
+        // Restore the model stored in future
+        match model.future with
+        | Some nextModel ->
+            // Move current to past for undo
+            { nextModel with past = Some model }
+        | None -> model
     | _ -> 
         // use the provided update function for all remaining messages
-        { updateFunction msg model with past = Some model }
+        // Clear future on new actions (can't redo after making changes)
+        { updateFunction msg model with past = Some model; future = None }
 
 
 let update (msg : Msg) (model : Model)  =
@@ -138,12 +180,19 @@ let render (model : Model) (dispatch : Msg -> unit) =
             Html.button [
                 prop.style [style.margin 20]; 
                 prop.onClick (fun _ -> dispatch Undo)
-                prop.children [Html.text "undo"]
+                prop.disabled (model.past = None)
+                prop.children [Html.text "Undo"]
             ]
             Html.button [
                 prop.style [style.margin 20]
                 prop.onClick (fun _ -> dispatch Redo)
-                prop.children [Html.text "redo"]
+                prop.disabled (model.future = None)
+                prop.children [Html.text "Redo"]
+            ]
+            Html.button [
+                prop.style [style.margin 20]
+                prop.onClick (fun _ -> dispatch Clear)
+                prop.children [Html.text "Clear All"]
             ]
             Html.br []
             Svg.svg [

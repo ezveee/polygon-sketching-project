@@ -18,6 +18,29 @@
                 var cursorpt =  pt.matrixTransform(svg.getScreenCTM().inverse());
                 return cursorpt;
             }
+
+            // Keyboard shortcuts for undo/redo
+            document.addEventListener('DOMContentLoaded', function() {
+                document.addEventListener('keydown', function(e) {
+                    if (e.ctrlKey || e.metaKey) {
+                        if (e.key === 'z' && !e.shiftKey) {
+                            e.preventDefault();
+                            // Trigger undo by clicking the undo button
+                            const undoBtn = document.querySelector('button');
+                            if (undoBtn && !undoBtn.disabled) {
+                                undoBtn.click();
+                            }
+                        } else if ((e.key === 'z' && e.shiftKey) || e.key === 'y') {
+                            e.preventDefault();
+                            // Trigger redo by clicking the redo button (second button)
+                            const buttons = document.querySelectorAll('button');
+                            if (buttons[1] && !buttons[1].disabled) {
+                                buttons[1].click();
+                            }
+                        }
+                    }
+                });
+            });
         </script>
     </head>
     <body>
