@@ -14,9 +14,14 @@ export class PolygonDrawingApp {
     private currentPolygon: Polygon | null = null;
     private previewPoint: Point | null = null;
     
-    // Undo/Redo history
-    private history: Polygon[][] = [[]];
+    // Undo/Redo history - stores both finished polygons and current polygon
+    private history: { polygons: Polygon[], currentPolygon: Polygon | null }[] = [
+        { polygons: [], currentPolygon: null }
+    ];
     private historyIndex: number = 0;
+    
+    // Track where current polygon started in history (for consolidation on finish)
+    private currentPolygonStartIndex: number = 0;
     
     // UI elements
     private undoBtn: HTMLButtonElement;
@@ -95,11 +100,15 @@ export class PolygonDrawingApp {
         const point = this.getMousePos(e);
         
         if (!this.currentPolygon) {
-            // Start new polygon
+            // Start new polygon - remember where we started in history
             this.currentPolygon = new Polygon();
+            this.currentPolygonStartIndex = this.historyIndex;
         }
         
         this.currentPolygon.addVertex(point);
+        
+        // Save to history after each vertex
+        this.saveToHistory();
         this.render();
     }
     
@@ -112,10 +121,15 @@ export class PolygonDrawingApp {
         if (this.currentPolygon && this.currentPolygon.vertices.length >= 3) {
             this.currentPolygon.finish();
             this.polygons.push(this.currentPolygon);
+            
+            // Consolidate history: remove all vertex-building states and replace with single finished state
+            this.history = this.history.slice(0, this.currentPolygonStartIndex + 1);
+            this.historyIndex = this.currentPolygonStartIndex;
+            
             this.currentPolygon = null;
             this.previewPoint = null;
             
-            // Save to history
+            // Save final state to history (finished polygon)
             this.saveToHistory();
             this.render();
         }
@@ -138,8 +152,11 @@ export class PolygonDrawingApp {
         // Remove any future history if we're not at the end
         this.history = this.history.slice(0, this.historyIndex + 1);
         
-        // Clone all polygons for history
-        const state = this.polygons.map(p => p.clone());
+        // Clone all polygons and current polygon for history
+        const state = {
+            polygons: this.polygons.map(p => p.clone()),
+            currentPolygon: this.currentPolygon ? this.currentPolygon.clone() : null
+        };
         this.history.push(state);
         this.historyIndex++;
         
@@ -152,8 +169,9 @@ export class PolygonDrawingApp {
     private undo(): void {
         if (this.historyIndex > 0) {
             this.historyIndex--;
-            this.polygons = this.history[this.historyIndex].map(p => p.clone());
-            this.currentPolygon = null;
+            const state = this.history[this.historyIndex];
+            this.polygons = state.polygons.map(p => p.clone());
+            this.currentPolygon = state.currentPolygon ? state.currentPolygon.clone() : null;
             this.previewPoint = null;
             this.updateUI();
             this.render();
@@ -166,8 +184,9 @@ export class PolygonDrawingApp {
     private redo(): void {
         if (this.historyIndex < this.history.length - 1) {
             this.historyIndex++;
-            this.polygons = this.history[this.historyIndex].map(p => p.clone());
-            this.currentPolygon = null;
+            const state = this.history[this.historyIndex];
+            this.polygons = state.polygons.map(p => p.clone());
+            this.currentPolygon = state.currentPolygon ? state.currentPolygon.clone() : null;
             this.previewPoint = null;
             this.updateUI();
             this.render();
