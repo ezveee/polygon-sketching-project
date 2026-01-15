@@ -5,7 +5,7 @@ open Expecto
 
 module Tests =
      
-    let empty = { finishedPolygons = []; currentPolygon = None; mousePos = None ; past = None; future = None; currentPolygonStartState = None }
+    let empty = { finishedPolygons = []; currentPolygon = None; mousePos = None ; past = None; future = None }
     let triangle = [{ x = 0.0; y = 0.0 }; { x = 50.0; y = 100.0 };  { x = 100.0; y = 0.0 }; { x = 0.0; y = 0.0 }]
     let singlePolygon = { empty with finishedPolygons = [ triangle ] }
     let applicationStates =

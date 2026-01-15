@@ -33,8 +33,6 @@ type Model = {
     past : Option<Model>
     // used for redo
     future : Option<Model>
-    // Track the state before starting the current polygon (for consolidation)
-    currentPolygonStartState : Option<Model>
 }
 
 // and explicit representation of all possible user interactions. This one can be used for 
@@ -51,7 +49,7 @@ type Msg =
 let init () =
     let m = 
         { finishedPolygons = []; currentPolygon = None; // records can be written multiline
-          mousePos = None ; past = None; future = None; currentPolygonStartState = None }
+          mousePos = None ; past = None; future = None }
     m, Cmd.none // Cmd is optionally to explicitly represent side-effects in a safe manner (here we don't bother)
 
 
@@ -70,33 +68,27 @@ let updateModel (msg : Msg) (model : Model) =
     | AddPoint coord ->
         match model.currentPolygon with
         | None -> 
-            // Start new polygon with this point
+            // if no previous point start new polygon
             { model with 
-                currentPolygon = Some [coord]
-                currentPolygonStartState = model.past }
+                currentPolygon = Some [coord] }
         | Some points ->
-            // Add point to existing polygon (prepend to list)
+            // add a point to existing polygon
             { model with currentPolygon = Some (coord :: points) }
     | FinishPolygon ->
         match model.currentPolygon with
-        | None -> model // No current polygon, ignore
+        | None -> model // ignore finish input if no current polygon
         | Some points ->
             if List.length points >= 3 then
-                // Finish polygon: add to finished list and reset current
-                // Also restore past to the start state to consolidate history
+                // if there are enough points finish the polygon
                 { model with 
                     finishedPolygons = points :: model.finishedPolygons
-                    currentPolygon = None
-                    past = model.currentPolygonStartState
-                    currentPolygonStartState = None }
+                    currentPolygon = None }
             else
-                model // Not enough points
+                model // stay in the same state if not enough points to finish polygon
     | Clear ->
-        // Clear all polygons
         { model with 
             finishedPolygons = []
-            currentPolygon = None
-            currentPolygonStartState = None }
+            currentPolygon = None }
     | _ -> model
 
 // wraps an update function with undo/redo.
@@ -108,17 +100,17 @@ let addUndoRedo (updateFunction : Msg -> Model -> Model) (msg : Msg) (model : Mo
         // update the mouse position and create a new model.
         { model with mousePos = p }
     | Undo -> 
-        // Restore the model stored in past
+        // restore the model stored in past
         match model.past with
         | Some prevModel -> 
-            // Move current to future for redo
+            // move current to future for the redo
             { prevModel with future = Some model }
         | None -> model
     | Redo -> 
-        // Restore the model stored in future
+        // restore the model stored in future
         match model.future with
         | Some nextModel ->
-            // Move current to past for undo
+            // move current to past for undo
             { nextModel with past = Some model }
         | None -> model
     | _ -> 
@@ -180,15 +172,18 @@ let render (model : Model) (dispatch : Msg -> unit) =
             Html.button [
                 prop.style [style.margin 20]; 
                 prop.onClick (fun _ -> dispatch Undo)
+                //disable when no past
                 prop.disabled (model.past = None)
                 prop.children [Html.text "Undo"]
             ]
             Html.button [
+                //add redo button
                 prop.style [style.margin 20]
                 prop.onClick (fun _ -> dispatch Redo)
                 prop.disabled (model.future = None)
                 prop.children [Html.text "Redo"]
             ]
+                // clear all button
             Html.button [
                 prop.style [style.margin 20]
                 prop.onClick (fun _ -> dispatch Clear)
